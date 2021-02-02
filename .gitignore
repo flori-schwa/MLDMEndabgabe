@@ -257,3 +257,6 @@ dmypy.json
 .prof
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,python,jupyternotebooks
+
+# Output of transformed data
+**/out/
