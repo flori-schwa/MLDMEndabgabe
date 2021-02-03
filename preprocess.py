@@ -32,8 +32,7 @@ def analyze_countries(census_data: pd.DataFrame):
     country_count = {}
 
     for idx, row in census_data.iterrows():
-        country = row['native-country']
-        country = "None" if country is None else country
+        country = str(row['native-country'])  # str() to convert `None` to `"None"`
 
         if country in country_count:
             country_count[country] += 1
@@ -66,10 +65,15 @@ class TransformContext:
     def __init__(self):
         self.sorted_countries = None
         self.country_percentages = None
+        self.country_median = 0
+
+    def __calc_median(self):
+        self.country_median = median(self.sorted_countries, by=lambda x: x[1])
 
     def calc(self, census_data: pd.DataFrame):
         print("TransformContext not found, calculating data...")
         self.country_percentages, self.sorted_countries = analyze_countries(census_data)
+        self.__calc_median()
         pass
 
     @staticmethod
@@ -94,6 +98,8 @@ class TransformContext:
 
             with self.require_file_read('sorted_countries.json') as f:
                 self.sorted_countries = json.load(f)
+
+            self.__calc_median()
         except FileNotFoundError:
             return False
 
@@ -110,33 +116,34 @@ class TransformContext:
             json.dump(self.sorted_countries, f)
 
 
-def transform_countries_rich_poor(census_data: pd.DataFrame, tc: TransformContext):
-    new_data = []
-    median_perc = median(tc.sorted_countries, by=lambda x: x[1])
+def transform_country(tc: TransformContext, cntry):
+    return 1 if tc.country_percentages[str(cntry)] >= tc.country_median else 0  # str() to convert `None` to `"None"`
 
-    for idx, row in census_data.iterrows():
-        cntry = row['native-country'];
-        cntry = "None" if cntry is None else cntry
 
-        new_data.append([
-            row['age'],
-            row['workclass'],
-            row['fnlwgt'],
-            row['education'],
-            row['education-num'],
-            row['marital-status'],
-            row['occupation'],
-            row['relationship'],
-            row['race'],
-            row['sex'],
-            row['capital-gain'],
-            row['capital-loss'],
-            row['hours-per-week'],
-            1 if tc.country_percentages[cntry] >= median_perc else 0,
-            row['class']
-        ])
+def transform_education_num(education_num: int):
+    if education_num == 1:
+        return 1  # Preschool
+    elif education_num == 2:
+        return 2  # Elementary School
+    elif education_num <= 4:
+        return 3  # Middle School
+    elif education_num <= 9:
+        return 4  # High School
+    elif education_num <= 12:
+        return 5  # College
+    return education_num - 7  # Bachelors - Doctorate
 
-    return new_data
+
+def transform_workclass(workclass):
+    if workclass is None:
+        return 'Unknown'
+    if workclass == 'Private':
+        return workclass
+    if workclass in ['Self-emp-not-inc', 'Self-emp-inc']:
+        return 'Self-emp'
+    if workclass in ['Federal-gov', 'Local-gov', 'State-gov']:
+        return 'Gov'
+    return 'Unpaid'
 
 
 if __name__ == "__main__":
@@ -149,8 +156,26 @@ if __name__ == "__main__":
 
     print("Transforming data...")
 
-    countries_transformed = transform_countries_rich_poor(census_raw, tc)
+    data_transformed = []
 
-    with open('out/countries_transformed.csv', 'w') as f:
-        for row in countries_transformed:
+    for _, row in census_raw.iterrows():
+        data_transformed.append([
+            row['age'],
+            transform_workclass(row['workclass']),
+            row['fnlwgt'],
+            transform_education_num(row['education-num']),
+            row['marital-status'],
+            row['occupation'],
+            row['relationship'],
+            row['race'],
+            row['sex'],
+            row['capital-gain'],
+            row['capital-loss'],
+            row['hours-per-week'],
+            transform_country(tc, row['native-country']),
+            row['class']
+        ])
+
+    with open('out/data_transformed.csv', 'w') as f:
+        for row in data_transformed:
             f.write((", ".join([('?' if x is None else str(x)) for x in row])) + '\n')
