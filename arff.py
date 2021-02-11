@@ -1,6 +1,6 @@
 import datetime
 from abc import ABC, abstractmethod
-from typing import List, TypeVar, Generic
+from typing import List, TypeVar, Generic, IO, Any
 
 from pandas import DataFrame
 
@@ -76,8 +76,30 @@ class DateAttribute(Attribute[datetime.datetime]):
 
 # endregion
 
+def write_arff_header(file: IO, relation_name: str, attributes: List[Attribute]):
+    file.write(f"@relation {relation_name}\n\n")
 
-def parse_arff_file(fname: str) -> DataFrame:
+    for attr in attributes:
+        file.write(f"@attribute {attr.name} ")
+
+        if isinstance(attr, NumericAttribute) or isinstance(attr, IntegerAttribute):
+            file.write("numeric\n")
+        elif isinstance(attr, NominalAttribute):
+            file.write(f"{{ {', '.join(attr.allowed_values)} }}\n")
+        elif isinstance(attr, DateAttribute):
+            file.write(f"date {attr.isoformat}\n")
+        else:
+            file.write("\n")
+
+    file.write("\n@data\n")
+
+
+def write_csv(file: IO, data: List[List[Any]]):
+    for row in data:
+        file.write((", ".join([('?' if x is None else str(x)) for x in row])) + '\n')
+
+
+def parse_arff_file(fname: str) -> (DataFrame, List[Attribute]):
     with open(fname) as f:
         lines = f.readlines()
 
@@ -117,7 +139,7 @@ def parse_arff_file(fname: str) -> DataFrame:
                             raise ValueError(f"Invalid Nominal Attribute Specification: {attr_type}")
 
                         values = []
-                        for value in attr_type.split(','):
+                        for value in attr_type[1:-1].split(','):
                             values.append(value.strip())
 
                         attributes.append(NominalAttribute(attr_name, values))
@@ -140,4 +162,4 @@ def parse_arff_file(fname: str) -> DataFrame:
 
         col_names = [attr.name for attr in attributes]
 
-        return DataFrame(data=data, columns=col_names)
+        return DataFrame(data=data, columns=col_names), attributes
