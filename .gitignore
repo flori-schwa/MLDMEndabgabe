@@ -260,3 +260,4 @@ dmypy.json
 
 # Output of transformed data
 **/out/
+**/logs/

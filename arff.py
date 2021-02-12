@@ -52,7 +52,7 @@ class NominalAttribute(Attribute[str]):
         self.allowed_values = allowed_values
 
     def is_valid(self, x: str) -> bool:
-        return x.strip() in self.allowed_values
+        return x is None or x.strip() in self.allowed_values  # None allowed for '?' entries
 
     def parse(self, x: str) -> T:
         return x

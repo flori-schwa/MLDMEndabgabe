@@ -1,7 +1,7 @@
 import json
 import math
 from pathlib import Path
-from typing import List, Dict, Tuple, Callable, Any
+from typing import List, Dict, Tuple, Callable, Any, Optional, Set
 
 import pandas as pd
 
@@ -11,8 +11,17 @@ CLASS_OVER_50K = '>50K'
 CLASS_UNDER_EQ_50K = "<=50K"
 
 
-def quantil(data, p, by):
-    if p < 0 or p > 1:
+def transform_func(base_attr_name: str, new_attr: arff.Attribute):
+    def decorate(func):
+        setattr(func, 'base_attr_name', base_attr_name)
+        setattr(func, 'new_attr', new_attr)
+        return func
+
+    return decorate
+
+
+def quantil(data, p: float, by: Callable[[Any], float]) -> Optional[float]:
+    if p <= 0 or p >= 1:
         return None
 
     n = len(data)
@@ -24,15 +33,15 @@ def quantil(data, p, by):
         return by(data[math.ceil(np - 1)])
 
 
-def median(data, by):
+def median(data, by: Callable[[Any], float]) -> Optional[float]:
     return quantil(data, 0.5, by)
 
 
-def analyze_countries(census_data: pd.DataFrame):
-    over_50k = {}
-    under_eq_50k = {}
+def analyze_countries(census_data: pd.DataFrame) -> Tuple[Dict[str, float], List[Tuple[str, float]]]:
+    over_50k: Dict[str, int] = {}
+    under_eq_50k: Dict[str, int] = {}
 
-    country_count = {}
+    country_count: Dict[str, int] = {}
 
     for idx, row in census_data.iterrows():
         country = str(row['native-country'])  # str() to convert `None` to `"None"`
@@ -53,12 +62,13 @@ def analyze_countries(census_data: pd.DataFrame):
             else:
                 under_eq_50k[country] = 1
 
-    percentages = {}
-    unique_countries = set([key for key in over_50k]).union(set([key for key in under_eq_50k]))
+    percentages: Dict[str, float] = {}
+    unique_countries: Set[str] = set([key for key in over_50k]).union(set([key for key in under_eq_50k]))
 
     for country in unique_countries:
-        num = over_50k[country] if country in over_50k else 0
-        denum = num + (under_eq_50k[country] if country in under_eq_50k else 0)
+        num: float = over_50k[country] if country in over_50k else 0
+        denum: float = num + (under_eq_50k[country] if country in under_eq_50k else 0)
+
         percentages[country] = 0 if denum == 0 else num / denum
 
     return percentages, sorted(percentages.items(), key=lambda x: x[1])
@@ -67,28 +77,28 @@ def analyze_countries(census_data: pd.DataFrame):
 class TransformContext:
     def __init__(self):
         self.sorted_countries = None
-        self.country_percentages = None
-        self.country_median = 0
+        self.country_percentages: Dict[str, float] = None
+        self.country_median: float = 0
         self.raw_data: pd.DataFrame = None
         self.base_attributes: List[arff.Attribute] = None
-        self.attribute_transforms: Dict[str, Tuple[arff.Attribute, Callable[[Any], Any]]] = {}
+        self.attribute_transforms: Dict[str, Tuple[arff.Attribute, Callable[['TransformContext', Any], Any]]] = {}
 
     def drop_attribute(self, base_attr_name: str):
-        self.add_attribute_transformation(base_attr_name, None, None)
+        self.attribute_transforms[base_attr_name] = (None, None)
 
     def drop_attributes(self, *argv):
         for arg in argv:
             self.drop_attribute(arg)
 
-    def add_attribute_transformation(self, base_attr_name: str, new_attr_type: arff.Attribute,
-                                     transform_func: Callable[[Any], Any]):
-        self.attribute_transforms[base_attr_name] = (new_attr_type, transform_func)
+    # noinspection PyUnresolvedReferences
+    def transform_attribute(self, transform_func: Callable[['TransformContext', Any], Any]):
+        self.attribute_transforms[transform_func.base_attr_name] = (transform_func.new_attr, transform_func)
 
     def initialize_transformation(self, raw_data: pd.DataFrame, base_attributes: List[arff.Attribute]):
         self.raw_data = raw_data
         self.base_attributes = base_attributes
 
-    def transform_data(self, new_relation_name: str, arff_out: str, csv_out: str):
+    def transform_data(self, new_relation_name: str, arff_out: str, csv_out: str) -> List[arff.Attribute]:
         data_transformed: List[List[Any]] = []
 
         for _, row in self.raw_data.iterrows():
@@ -101,7 +111,13 @@ class TransformContext:
                     if new_attr_type is None or transform_func is None:
                         continue  # Drop Attribute
 
-                    new_row.append(transform_func(row[attr.name]))
+                    transformed = transform_func(self, row[attr.name])
+
+                    if not new_attr_type.is_valid(transformed):
+                        print(f"Invalid data returned for transformed attribute {new_attr_type.name}: {transformed}")
+                        return None
+
+                    new_row.append(transformed)
                 else:
                     new_row.append(row[attr.name])
 
@@ -128,6 +144,8 @@ class TransformContext:
                 arff.write_csv(csv_f, data_transformed)
 
             arff.write_csv(arff_f, data_transformed)
+
+        return new_attributes
 
     def __calc_median(self):
         self.country_median = median(self.sorted_countries, by=lambda x: x[1])
@@ -178,116 +196,12 @@ class TransformContext:
             json.dump(self.sorted_countries, f)
 
 
-def transform_country(tc: TransformContext, cntry):
-    return 1 if tc.country_percentages[str(cntry)] >= tc.country_median else 0  # str() to convert `None` to `"None"`
+@transform_func('class', arff.NominalAttribute('target', ['1', '0']))
+def class_to_target(_: TransformContext, clazz: str) -> str:
+    return '1' if clazz == CLASS_OVER_50K else '0'
 
 
-def transform_country_regional(cntry):
-    if cntry is None:
-        return None
-    if cntry in ["Holand-Netherlands", "Scotland", "Portugal", "Germany", "Ireland", "Italy", "England", "France"]:
-        return "West-Europe"
-    elif cntry in ["Poland", "Hungary", "Yugoslavia", "Greece"]:
-        return "East-Europe"
-    elif cntry in ["United-States", "Canada"]:
-        return "North-America"
-    elif cntry in ["Guatemala", "Columbia", "Dominican-Republic", "Mexico", "Nicaragua", "El-Salvador",
-                   "Trinadad&Tobago", "Peru", "Honduras", "Puerto-Rico", "Haiti", "Ecuador", "Jamaica", "Cuba"]:
-        return "Latin-America"
-    elif cntry in ["Outlying-US(Guam-USVI-etc)"]:
-        return "Outlying-US"
-    elif cntry in ["Iran"]:
-        return "Middle-East"
-    elif cntry in ["Vietnam", "Laos", "Thailand", "Hong", "Philippines", "China", "Cambodia", "Japan", "Taiwan",
-                   "India"]:
-        return "Asia"
-    else:
-        return None
-
-
-"""
-1: Preschool
-2: 1st-4th
-3: 5th-6th
-4: 7th-8th
-5: 9th
-6: 10th
-7: 11th
-8: 12th
-9: Hs-grad
-10: Some-college
-11: Assoc-voc
-12: Assoc-acdm
-13: Bachelors
-14: Masters
-15: Prof-school
-16: Doctorate
-
------
-
-1: Preschool
-2: Elementary School
-3: Middle School
-4: High School
-5: College
-6: Bachelors
-7: Masters
-8: Prof-school
-9: Doctorate
-"""
-
-
-def transform_education_is_grad_college(education_num: int):
-    return "Yes" if education_num >= 13 else "No"
-
-
-def transform_education_hs_col_grad(education_num: int):
-    if education_num < 9:
-        return "No-HS"
-    if education_num == 9:
-        return "HS-Grad"
-    if education_num < 13:
-        return "College"
-    return "College-Grad"
-
-
-def transform_education_num(education_num: int):
-    if education_num == 1:
-        return 1  # Preschool
-    elif education_num == 2:
-        return 2  # Elementary School
-    elif education_num <= 4:
-        return 3  # Middle School
-    elif education_num <= 9:
-        return 4  # High School
-    elif education_num <= 12:
-        return 5  # College
-    return education_num - 7  # Bachelors - Doctorate
-
-
-def transform_workclass(workclass):
-    if workclass is None:
-        return None
-    if workclass == 'Private':
-        return workclass
-    if workclass in ['Self-emp-not-inc', 'Self-emp-inc']:
-        return 'Self-emp'
-    if workclass in ['Federal-gov', 'Local-gov', 'State-gov']:
-        return 'Gov'
-    return 'Unpaid'
-
-
-def transform_hrs_per_week(x: int):
-    return 1 if x >= 40 else 0
-
-
-def transform_age(age: int):
-    if age < 34:
-        return 1
-    if age < 44:
-        return 2
-    return 3
-
+import Florian, Frank, Phillipp
 
 if __name__ == "__main__":
     census_raw, census_attributes = arff.parse_arff_file("adult_train.arff")
@@ -300,35 +214,18 @@ if __name__ == "__main__":
     print("Transforming data...")
 
     tc.initialize_transformation(census_raw, census_attributes)
-    tc.drop_attributes('fnlwgt', 'race', 'capital-loss', 'education')
-    tc.add_attribute_transformation('workclass',
-                                    arff.NominalAttribute('workclass', ['Private', 'Self-emp', 'Gov', 'Unpaid']),
-                                    transform_workclass)
-    tc.add_attribute_transformation('education-num', arff.NominalAttribute('is-college-grad', ['Yes', 'No']),
-                                    transform_education_is_grad_college)
+    tc.drop_attributes('fnlwgt', 'race', 'capital-loss', 'education', 'relationship', 'capital-loss')
+    tc.transform_attribute(class_to_target)
+
+    tc.transform_attribute(Florian.transform_cntry_percentage)
+    # tc.transform_attribute(Florian.transform_education_hs_col_grad)
+    tc.transform_attribute(Florian.transform_hrs_per_week)
+
+    tc.transform_attribute(Frank.transform_age_c)
+    tc.transform_attribute(Frank.transform_capital_gain_bin)
+    # tc.transform_attribute(Frank.transform_capital_loss_bin)
+
+    tc.transform_attribute(Phillipp.transform_marital_status)
+    # tc.transform_attribute(Phillipp.transform_relationship)
 
     tc.transform_data('census_transformed', 'out/data_transformed.arff', 'out/data_transformed.csv')
-    # data_transformed = []
-    #
-    # for _, row in census_raw.iterrows():
-    #     data_transformed.append([
-    #         transform_age(row['age']),
-    #         row['workclass'],  # row['workclass'],  # transform_workclass(row['workclass']),
-    #         row['fnlwgt'],
-    #         row['education'],
-    #         row['education-num'],  # transform_education_is_grad_college(row['education-num']), # transform_education_num(row['education-num']), # row['education-num'],  # transform_education_num(row['education-num']),
-    #         row['marital-status'],
-    #         row['occupation'],
-    #         row['relationship'],
-    #         row['race'],
-    #         row['sex'],
-    #         row['capital-gain'],
-    #         row['capital-loss'],
-    #         row['hours-per-week'],
-    #         row['native-country'], # transform_country_regional(row['native-country']),  # transform_country(tc, row['native-country']),
-    #         row['class']
-    #     ])
-    #
-    # with open('out/data_transformed.csv', 'w') as f:
-    #     for row in data_transformed:
-    #         f.write((", ".join([('?' if x is None else str(x)) for x in row])) + '\n')
