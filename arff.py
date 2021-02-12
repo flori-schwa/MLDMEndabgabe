@@ -4,6 +4,8 @@ from typing import List, TypeVar, Generic, IO, Any
 
 from pandas import DataFrame
 
+from math import ceil, floor
+
 # region Attribute Class Definitions
 
 T = TypeVar('T')
@@ -31,7 +33,13 @@ class NumericAttribute(Attribute[float]):
             return False
 
     def parse(self, x: str) -> float:
-        return float(x)
+        f = float(x)
+        fl = floor(f)
+
+        if ceil(f) == fl:
+            return fl
+
+        return f
 
 
 class IntegerAttribute(Attribute[int]):
@@ -96,7 +104,7 @@ def write_arff_header(file: IO, relation_name: str, attributes: List[Attribute])
 
 def write_csv(file: IO, data: List[List[Any]]):
     for row in data:
-        file.write((", ".join([('?' if x is None else str(x)) for x in row])) + '\n')
+        file.write((",".join([('?' if x is None else str(x)) for x in row])) + '\n')
 
 
 def parse_arff_file(fname: str) -> (DataFrame, List[Attribute]):
@@ -152,10 +160,16 @@ def parse_arff_file(fname: str) -> (DataFrame, List[Attribute]):
                     raise ValueError(f"Expected {len(attributes)} attributes in data line, but found {len(values)}")
 
                 for i in range(len(values)):
+                    attr = attributes[i]
+
                     if values[i] == '?':
+                        if isinstance(attr, NominalAttribute):
+                            if '?' not in attr.allowed_values:
+                                attr.allowed_values.append('?')
+
                         parsed.append(None)
                     else:
-                        parsed.append(attributes[i].parse(values[i]))
+                        parsed.append(attr.parse(values[i]))
 
                 data.append(parsed)
                 continue

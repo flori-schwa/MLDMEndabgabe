@@ -260,4 +260,7 @@ dmypy.json
 
 # Output of transformed data
 **/out/
+
+# NN Log and Checkpoint data
 **/logs/
+**/census/

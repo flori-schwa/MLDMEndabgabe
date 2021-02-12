@@ -198,7 +198,7 @@ class TransformContext:
 
 @transform_func('class', arff.NominalAttribute('target', ['1', '0']))
 def class_to_target(_: TransformContext, clazz: str) -> str:
-    return '1' if clazz == CLASS_OVER_50K else '0'
+    return '0' if clazz == CLASS_OVER_50K else '1'
 
 
 import Florian, Frank, Phillipp
