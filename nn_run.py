@@ -15,7 +15,6 @@ import Phillipp
 import arff
 import preprocess
 
-
 # A utility method to create a tf.data dataset from a Pandas Dataframe
 def df_to_dataset(dataframe, shuffle=True, batch_size=32):
     dataframe: pd.DataFrame = dataframe.copy()
@@ -60,19 +59,18 @@ if __name__ == "__main__":
 
     tc.initialize_transformation(census_raw, attributes)
 
-    tc.drop_attributes('fnlwgt', 'capital-loss', 'relationship', 'education')
-
+    tc.drop_attributes('fnlwgt', 'capital-loss', 'relationship', 'race', 'education')
+    # tc.drop_attributes('fnlwgt')
     tc.transform_attribute(preprocess.class_to_target)
-
-    tc.transform_attribute(Florian.transform_cntry_regional)
-    tc.transform_attribute(Florian.transform_workclass)
-    tc.transform_attribute(Florian.transform_hrs_per_week)
-    tc.transform_attribute(Florian.transform_age)
-    tc.transform_attribute(Florian.transform_education_hs_col_grad)
-
     tc.transform_attribute(Frank.transform_capital_gain_bin)
 
-    tc.transform_attribute(Phillipp.transform_marital_status)
+    # tc.transform_attribute(Florian.transform_workclass)
+    # tc.transform_attribute(Florian.transform_hrs_per_week)
+    # tc.transform_attribute(Florian.transform_age)
+    # tc.transform_attribute(Florian.transform_education_hs_col_grad)
+
+
+    # tc.transform_attribute(Phillipp.transform_marital_status)
 
     attr_list = tc.transform_data('census_train', 'out/train.arff', 'out/train.csv')
 
@@ -127,16 +125,12 @@ if __name__ == "__main__":
     model = tf.keras.Sequential([
         feature_layer,
         # layers.Dense(64, activation='relu'),
+        # layers.Dropout(0.1),
         layers.Dense(32, activation='relu'),
-        # layers.Dense(16, activation='sigmoid'),
+        # layers.Dense(16, activation='relu'),
         layers.Dense(8, activation='relu'),
         layers.Dense(1)
     ])
-
-
-    def my_metrics(y_true, y_pred):
-        return y_true, y_pred
-
 
     model.compile(optimizer='RMSprop',
                   loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
@@ -145,7 +139,7 @@ if __name__ == "__main__":
     log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-    history = model.fit(train_ds, validation_data=val_ds, epochs=100, callbacks=[tensorboard_callback, cp_callback],
+    history = model.fit(train_ds, validation_data=val_ds, epochs=30, callbacks=[tensorboard_callback, cp_callback],
                         verbose=1,
                         workers=8, use_multiprocessing=True)
 
@@ -165,6 +159,9 @@ if __name__ == "__main__":
     print(f"average val_accuracy: {statistics.mean(history.history['val_accuracy'])}")
 
     df_test = pd.read_csv('out/test.csv')
+    ds_test = df_to_dataset(df_test, shuffle=False, batch_size=batch_size)
 
-    print(model.evaluate(df_test))
-    # print("Accuracy", accuracy, " Precision", precision, " Recall", recall)
+    print("\n\n================== TEST ==================")
+
+    loss, accuracy, f1_score, precision, recall = model.evaluate(ds_test)
+    print(f"Loss: {loss}, Accuracy: {accuracy}, F-Score: {f1_score}, Precision: {precision}, Recall: {recall}")
