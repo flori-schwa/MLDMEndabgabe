@@ -218,4 +218,5 @@ if __name__ == "__main__":
     tc.transform_attribute(class_to_target)
     tc.transform_attribute(Frank.transform_capital_gain_bin)
 
+    Path('out').mkdir(parents=True, exist_ok=True)  # Create out directory, if it does not exist
     tc.transform_data('census_transformed', 'out/data_transformed.arff', 'out/data_transformed.csv')

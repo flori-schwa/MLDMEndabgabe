@@ -1,5 +1,6 @@
 import datetime
 import statistics
+from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -63,6 +64,7 @@ if __name__ == "__main__":
     tc.transform_attribute(preprocess.class_to_target)
     tc.transform_attribute(Frank.transform_capital_gain_bin)
 
+    Path('out').mkdir(parents=True, exist_ok=True)  # Create out directory, if it does not exist
     attr_list = tc.transform_data('census_train', 'out/train.arff', 'out/train.csv')
 
     census_test, test_attr = arff.parse_arff_file("adult_test.arff")
