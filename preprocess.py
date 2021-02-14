@@ -214,18 +214,8 @@ if __name__ == "__main__":
     print("Transforming data...")
 
     tc.initialize_transformation(census_raw, census_attributes)
-    tc.drop_attributes('fnlwgt', 'race', 'capital-loss', 'education', 'relationship', 'capital-loss')
+    tc.drop_attributes('fnlwgt', 'capital-loss', 'education')
     tc.transform_attribute(class_to_target)
-
-    tc.transform_attribute(Florian.transform_cntry_percentage)
-    # tc.transform_attribute(Florian.transform_education_hs_col_grad)
-    tc.transform_attribute(Florian.transform_hrs_per_week)
-
-    tc.transform_attribute(Frank.transform_age_c)
     tc.transform_attribute(Frank.transform_capital_gain_bin)
-    # tc.transform_attribute(Frank.transform_capital_loss_bin)
-
-    tc.transform_attribute(Phillipp.transform_marital_status)
-    # tc.transform_attribute(Phillipp.transform_relationship)
 
     tc.transform_data('census_transformed', 'out/data_transformed.arff', 'out/data_transformed.csv')
