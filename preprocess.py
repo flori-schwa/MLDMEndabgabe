@@ -47,20 +47,20 @@ def analyze_countries(census_data: pd.DataFrame) -> Tuple[Dict[str, float], List
         country = str(row['native-country'])  # str() to convert `None` to `"None"`
 
         if country in country_count:
-            country_count[country] += 1
+            country_count[country] += row['fnlwgt']
         else:
-            country_count[country] = 1
+            country_count[country] = row['fnlwgt']
 
         if row['class'] == CLASS_OVER_50K:
             if country in over_50k:
-                over_50k[country] += 1
+                over_50k[country] += row['fnlwgt']
             else:
-                over_50k[country] = 1
+                over_50k[country] = row['fnlwgt']
         else:
             if country in under_eq_50k:
-                under_eq_50k[country] += 1
+                under_eq_50k[country] += row['fnlwgt']
             else:
-                under_eq_50k[country] = 1
+                under_eq_50k[country] = row['fnlwgt']
 
     percentages: Dict[str, float] = {}
     unique_countries: Set[str] = set([key for key in over_50k]).union(set([key for key in under_eq_50k]))

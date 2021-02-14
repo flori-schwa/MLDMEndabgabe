@@ -2,6 +2,11 @@ from arff import NumericAttribute, NominalAttribute
 from preprocess import TransformContext, transform_func
 
 
+@transform_func('relationship', NominalAttribute("own-child", ["Yes", "No"]))
+def transform_relationship(_: TransformContext, rel):
+    return "Yes" if rel == "Own-child" else "No"
+
+
 @transform_func('native-country', NumericAttribute("rich-country"))
 def transform_cntry_rich_poor(tc: TransformContext, cntry) -> int:
     return 1 if tc.country_percentages[str(cntry)] >= tc.country_median else 0  # str() to convert `None` to `"None"`

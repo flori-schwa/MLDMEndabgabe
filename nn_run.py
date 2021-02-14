@@ -59,18 +59,9 @@ if __name__ == "__main__":
 
     tc.initialize_transformation(census_raw, attributes)
 
-    tc.drop_attributes('fnlwgt', 'capital-loss', 'relationship', 'race', 'education')
-    # tc.drop_attributes('fnlwgt')
+    tc.drop_attributes('fnlwgt', 'capital-loss', 'education')
     tc.transform_attribute(preprocess.class_to_target)
     tc.transform_attribute(Frank.transform_capital_gain_bin)
-
-    # tc.transform_attribute(Florian.transform_workclass)
-    # tc.transform_attribute(Florian.transform_hrs_per_week)
-    # tc.transform_attribute(Florian.transform_age)
-    # tc.transform_attribute(Florian.transform_education_hs_col_grad)
-
-
-    # tc.transform_attribute(Phillipp.transform_marital_status)
 
     attr_list = tc.transform_data('census_train', 'out/train.arff', 'out/train.csv')
 
@@ -139,7 +130,7 @@ if __name__ == "__main__":
     log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-    history = model.fit(train_ds, validation_data=val_ds, epochs=30, callbacks=[tensorboard_callback, cp_callback],
+    history = model.fit(train_ds, validation_data=val_ds, epochs=100, callbacks=[tensorboard_callback, cp_callback],
                         verbose=1,
                         workers=8, use_multiprocessing=True)
 

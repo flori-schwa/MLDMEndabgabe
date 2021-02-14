@@ -1,4 +1,4 @@
-from arff import NumericAttribute
+from arff import NumericAttribute, NominalAttribute
 from preprocess import TransformContext, transform_func
 
 
@@ -15,9 +15,9 @@ def transform_age_c(_: TransformContext, age: int) -> int:
     return 4
 
 
-@transform_func('capital-gain', NumericAttribute('capital-gainB'))
-def transform_capital_gain_bin(_: TransformContext, cg: float) -> int:
-    return 1 if cg > 5000 else 0
+@transform_func('capital-gain', NominalAttribute('capital-gainB', ["Yes", "No"]))
+def transform_capital_gain_bin(_: TransformContext, cg: float) -> str:
+    return "Yes" if cg > 5000 else "No"
 
 
 @transform_func('capital-loss', NumericAttribute('capital-lossB'))
